@@ -4,3 +4,4 @@ matplotlib
 alpaca-py
 scikit-learn
 python-dotenv
+streamlit

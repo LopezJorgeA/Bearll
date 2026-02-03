@@ -43,7 +43,10 @@ class DataProcessor:
         # 6. Definir el Target (Lo que queremos predecir mañana)
         self.df['target_return'] = self.df['returns'].shift(-1)
 
-        # Limpieza de valores nulos SOLO en las features, no en el target
+        # Target de apertura del día siguiente (open_{t+1} respecto al close_t)
+        self.df['target_open_return'] = (self.df['open'].shift(-1) / self.df['close']) - 1
+
+        # Limpieza de valores nulos SOLO en las features, no en los targets
         feature_cols = ['returns']
         feature_cols += [f'lag_{i}' for i in range(1, 4)]
         feature_cols += [
