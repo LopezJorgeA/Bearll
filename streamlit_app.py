@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import pandas as pd
+import base64
 
 from data_loader import DataLoader
 from processor import DataProcessor
@@ -9,8 +10,66 @@ from model import StockModel
 
 st.set_page_config(page_title="NVDA Stock Predictor", layout="wide")
 
-st.title("📈 NVDA Stock Predictor")
-st.write("Interfaz web para ver las predicciones del modelo y su histórico de aciertos.")
+
+def _load_header_image_base64(path: str) -> str:
+    """Devuelve la imagen codificada en base64 para usarla como background en CSS."""
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+_header_img_b64 = _load_header_image_base64("assets/TheWallStreet.jpg")
+
+# Header tipo banner con imagen de fondo y título encima
+st.markdown(
+    f"""
+    <style>
+    .nvda-header {{
+        position: relative;
+        width: 100%;
+        height: 180px;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }}
+    .nvda-header-bg {{
+        position: absolute;
+        inset: 0;
+        background-image: url('data:image/jpg;base64,{_header_img_b64}');
+        background-size: cover;
+        background-position: center;
+        filter: brightness(0.45);
+    }}
+    .nvda-header-content {{
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 2rem;
+        color: #f9fafb;
+    }}
+    .nvda-header-title {{
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin: 0;
+    }}
+    .nvda-header-subtitle {{
+        font-size: 0.95rem;
+        opacity: 0.9;
+        margin-top: 0.4rem;
+    }}
+    </style>
+    <div class="nvda-header">
+        <div class="nvda-header-bg"></div>
+        <div class="nvda-header-content">
+            <h1 class="nvda-header-title">📈 NVDA Stock Predictor</h1>
+            <div class="nvda-header-subtitle">Interfaz web para ver las predicciones del modelo y su histórico de aciertos.</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_data(show_spinner=True)
@@ -37,7 +96,7 @@ st.subheader("Parámetros del modelo")
 params_col1, params_col2 = st.columns([3, 1])
 with params_col1:
     days_back = st.slider(
-        "Días hacia atrás",
+        "Días pasados para cargar datos históricos",
         min_value=180,
         max_value=1095,
         value=730,
@@ -122,5 +181,48 @@ if st.session_state["run_clicked"]:
     try:
         log_df = pd.read_csv("predictions_log.csv")
         st.dataframe(log_df.tail(20))
+
+        # Cálculo de error usando los precios reales disponibles en df_enriched
+        hist_df = log_df.copy()
+        hist_df["target_date"] = pd.to_datetime(hist_df["target_date"]).dt.date
+
+        prices_df = df_enriched.copy()
+        prices_df["date"] = pd.to_datetime(prices_df["timestamp"]).dt.date
+
+        merged = hist_df.merge(
+            prices_df[["date", "close"]],
+            left_on="target_date",
+            right_on="date",
+            how="left",
+        )
+
+        valid = merged.dropna(subset=["close"])
+
+        if len(valid) > 0:
+            actual_close = valid["close"]
+            pred_close = valid["predicted_close"]
+
+            # Error porcentual absoluto por predicción
+            ape = (pred_close - actual_close).abs() / actual_close * 100.0
+
+            mape = ape.mean()
+            last_error = ape.iloc[-1]
+
+            st.subheader("Métricas de error en cierre")
+            mcol1, mcol2 = st.columns(2)
+            with mcol1:
+                st.metric(
+                    label="Error porcentual medio (MAPE)",
+                    value=f"{mape:.2f}%",
+                )
+            with mcol2:
+                st.metric(
+                    label="Error porcentual de la última predicción con dato real",
+                    value=f"{last_error:.2f}%",
+                )
+        else:
+            st.info(
+                "Todavía no hay días en los que se conozca el precio real de cierre para las fechas predichas."
+            )
     except FileNotFoundError:
         st.info("Aún no existe predictions_log.csv. Ejecuta main.py varias veces para ir guardando predicciones.")
