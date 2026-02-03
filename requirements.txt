@@ -1,0 +1,6 @@
+pandas
+numpy
+matplotlib
+alpaca-py
+scikit-learn
+python-dotenv
