@@ -177,7 +177,7 @@ if st.session_state["run_clicked"]:
 
     # Historial de predicciones si existe el CSV que genera main.py
     st.markdown("---")
-    st.subheader("Histórico de predicciones (si existe predictions_log.csv)")
+    st.subheader("Histórico de predicciones")
     try:
         log_df = pd.read_csv("predictions_log.csv")
         st.dataframe(log_df.tail(20))
