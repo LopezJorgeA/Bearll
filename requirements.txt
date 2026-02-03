@@ -5,3 +5,4 @@ alpaca-py
 scikit-learn
 python-dotenv
 streamlit
+xgboost

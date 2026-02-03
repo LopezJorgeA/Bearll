@@ -78,8 +78,8 @@ def log_and_evaluate_predictions(df_enriched, prediction):
     print(f"Porcentaje de acierto en dirección: {dir_hit_rate*100:.2f}%")
 
 def run_project():
-    # 1. Configuración: Ahora incluimos SPY como referencia de mercado
-    SYMBOLS = ["NVDA", "SPY"]
+    # 1. Configuración: usamos referencias más cercanas a NVDA (QQQ y SOXX)
+    SYMBOLS = ["NVDA", "QQQ", "SOXX"]
     START_DATE = datetime.now() - timedelta(days=730) 
 
     # 2. Carga de datos (ahora recibe una lista)

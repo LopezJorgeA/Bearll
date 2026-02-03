@@ -1,37 +1,55 @@
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, accuracy_score
+from xgboost import XGBRegressor, XGBClassifier
 
 class StockModel:
     def __init__(self, df):
         self.df = df
-        # Modelo regresor para el retorno porcentual del próximo día
-        self.reg_model = RandomForestRegressor(
-            n_estimators=200,
-            max_depth=10,
-            random_state=42
+        # Modelo regresor para el retorno porcentual del próximo día (cierre)
+        self.reg_model = XGBRegressor(
+            n_estimators=700,
+            learning_rate=0.05,
+            max_depth=5,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            objective="reg:squarederror",
+            n_jobs=-1,
+            random_state=42,
         )
 
         # Modelo regresor para la apertura del día siguiente
-        self.open_reg_model = RandomForestRegressor(
-            n_estimators=200,
-            max_depth=10,
-            random_state=42
+        self.open_reg_model = XGBRegressor(
+            n_estimators=700,
+            learning_rate=0.05,
+            max_depth=5,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            objective="reg:squarederror",
+            n_jobs=-1,
+            random_state=42,
         )
 
         # Modelo clasificador para dirección (sube/baja)
-        self.dir_model = RandomForestClassifier(
-            n_estimators=200,
-            max_depth=10,
-            random_state=42
+        self.dir_model = XGBClassifier(
+            n_estimators=400,
+            learning_rate=0.05,
+            max_depth=4,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            use_label_encoder=False,
+            eval_metric="logloss",
         )
 
     def prepare_data(self):
         # Añadimos los nuevos refuerzos a la lista de pistas
         features = [
-            'lag_1', 'lag_2', 'rsi', 'volatility', 
-            'spy_returns', 'b_position'
+            'lag_1', 'lag_2', 'rsi', 'volatility',
+            'qqq_returns', 'soxx_returns',
+            'atr_14', 'dist_vwap', 'vol_change',
+            'dist_sma20', 'roc_5', 'adx_14',
+            'regime_vol', 'b_position',
         ]
         self.features = features
 
@@ -138,10 +156,29 @@ class StockModel:
         prob_up = self.dir_model.predict_proba(latest_features)[0][1]
         direction = "al alza" if pred_return > 0 else "a la baja"
 
-        # Recomendación simple basada en señal y confianza
-        if prob_up >= 0.6 and pred_return > 0:
+        # Umbrales dinámicos según el régimen de volatilidad y ATR
+        latest_row = self.df.tail(1).iloc[0]
+        atr_val = latest_row.get('atr_14', 0)
+        vol_val = latest_row.get('volatility', 0)
+
+        atr_med = self.df['atr_14'].median()
+        vol_med = self.df['volatility'].median()
+
+        high_vol = (atr_val >= atr_med) or (vol_val >= vol_med)
+
+        if high_vol:
+            # Mercado más "caliente": umbrales más agresivos
+            up_threshold = 0.55
+            down_threshold = 0.45
+        else:
+            # Mercado tranquilo: pedimos más confianza
+            up_threshold = 0.65
+            down_threshold = 0.35
+
+        # Recomendación basada en señal, confianza y volatilidad
+        if prob_up >= up_threshold and pred_return > 0:
             action = "LONG"
-        elif prob_up <= 0.4 and pred_return < 0:
+        elif prob_up <= down_threshold and pred_return < 0:
             action = "SHORT"
         else:
             action = "NEUTRAL"

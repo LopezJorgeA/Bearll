@@ -18,7 +18,7 @@ class DataLoader:
         self.client = StockHistoricalDataClient(api_key, secret_key)
 
     def get_stock_data(self, symbols, start_date):
-        # symbols ahora puede ser una lista como ["NVDA", "SPY"]
+        # symbols ahora puede ser una lista como ["NVDA", "QQQ", "SOXX"]
         print(f"Descargando datos para {symbols}...")
         
         request_params = StockBarsRequest(
@@ -29,26 +29,31 @@ class DataLoader:
 
         bars = self.client.get_stock_bars(request_params)
         df = bars.df.reset_index()
-        
-        # Vamos a pivotar la tabla para que sea fácil de procesar
-        # Queremos columnas como: close_NVDA, close_SPY
+
+        # Pivotamos para tener cierres de todos los símbolos como columnas
+        # Por ejemplo: close_NVDA, close_QQQ, close_SOXX
         df_pivot = df.pivot(index='timestamp', columns='symbol', values='close')
         df_pivot.columns = [f'close_{col}' for col in df_pivot.columns]
-        
-        # También necesitamos los otros datos de NVDA (Open, High, Low, Volume)
+
+        # También necesitamos los otros datos de NVDA (Open, High, Low, Volume, VWAP...)
         nvda_raw = df[df['symbol'] == 'NVDA'].set_index('timestamp')
-        
-        # Combinamos todo
-        final_df = nvda_raw.join(df_pivot['close_SPY'])
+
+        # Eliminamos la columna de cierre NVDA del pivot (ya la tenemos en nvda_raw)
+        for col in list(df_pivot.columns):
+            if col.lower() in ("close_nvda",):
+                df_pivot.drop(columns=[col], inplace=True)
+
+        # Combinamos todo: NVDA + referencias de mercado (QQQ, SOXX, etc.)
+        final_df = nvda_raw.join(df_pivot)
         return final_df.reset_index()
 
 # --- Bloque de prueba ---
 if __name__ == "__main__":
     # Esto es solo para probar que este archivo funciona solo
     loader = DataLoader()
-    # Probamos con NVIDIA desde hace 2 años (puedes cambiar la fecha)
+    # Probamos con NVIDIA y referencias de mercado desde hace 2 años (puedes cambiar la fecha)
     test_date = datetime(2024, 1, 1)
-    data = loader.get_stock_data("NVDA", test_date)
+    data = loader.get_stock_data(["NVDA", "QQQ", "SOXX"], test_date)
     
     print("\nDatos descargados con éxito:")
     print(data.head()) # Muestra las primeras 5 filas

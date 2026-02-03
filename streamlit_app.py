@@ -76,7 +76,8 @@ st.markdown(
 def load_data(days_back: int = 730):
     loader = DataLoader()
     start = datetime.now() - timedelta(days=days_back)
-    df_raw = loader.get_stock_data(["NVDA", "SPY"], start)
+    # Usamos referencias de mercado más alineadas con NVDA: QQQ / SOXX
+    df_raw = loader.get_stock_data(["NVDA", "QQQ", "SOXX"], start)
     processor = DataProcessor(df_raw)
     df_enriched = processor.add_technical_indicators()
     return df_raw, df_enriched
